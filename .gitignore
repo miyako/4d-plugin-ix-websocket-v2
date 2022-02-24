@@ -1,0 +1,3 @@
+*.DS_Store
+ix-websocket-v2/build/*
+ix-websocket-v2/test/userPreferences.*

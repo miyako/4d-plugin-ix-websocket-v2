@@ -78,7 +78,7 @@ status:=Websocket client start(socket)
 |-|-|-|
 |socket|Object||
 |socket.id|Number|socket unique identifier|
-|socket.timeout|Number|optional, 30` seconds by default|
+|socket.timeout|Number|optional, `30` seconds by default|
 |status|Object||
 |status.headers|Object||
 |status.http_status|Number||
@@ -102,7 +102,7 @@ status:=Websocket client stop(socket)
 |socket.id|Number|socket unique identifier|
 |socket.code|Number|optional|
 |socket.reason|Text|optional|
-|status|Object||
+|status|Object|not used|
 
 ## Websocket client send
 

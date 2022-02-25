@@ -229,6 +229,7 @@ status:=Websocket server send(socket)
 |status.compressionError|Boolean||
 |status.payloadSize|Boolean||
 |status.wireSize|Boolean||
+|status.uri|Text||
 
 by default, message is sent to all connected clients. to target a specific client, pass `uri`
 

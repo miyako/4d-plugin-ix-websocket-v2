@@ -206,8 +206,6 @@ status:=Websocket server stop(socket)
 |-|-|-|
 |socket|Object||
 |socket.id|Number|socket unique identifier|
-|socket.code|Number|optional|
-|socket.reason|Text|optional|
 |status|Object|not used|
 
 ## Websocket server send

@@ -232,3 +232,17 @@ status:=Websocket server send(socket)
 
 by default, message is sent to all connected clients. to target a specific client, pass `uri`
 
+## Websocket server clear
+
+stop and destroy server object
+
+```4d
+status:=Websocket server clear(socket)
+```
+
+|Parameter|Type|Description|
+|-|-|-|
+|socket|Object||
+|socket.id|Number|socket unique identifier|
+|status|Object||
+|status.success|Boolean||

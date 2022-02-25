@@ -795,17 +795,13 @@ void Websocket_client(PA_PluginParameters params) {
         
         socket_id_t idx = (socket_id_t)ob_get_n(options, L"id");
         ob_set_n(returnValue, L"id", idx);
-        
-        const std::string URL = webSocket->getUrl();
-        
-        webSocket->setOnMessageCallback([URL,idx](const ix::WebSocketMessagePtr& msg) {
+                
+        webSocket->setOnMessageCallback([idx](const ix::WebSocketMessagePtr& msg) {
             
                 if (msg->type == ix::WebSocketMessageType::Message)
                 {
                     Json::Value messageInfo(Json::objectValue);
-                             
-                    messageInfo["URL"] = URL;
-                    
+                                                 
                     messageInfo["str"] = msg->str;
                     messageInfo["binary"] = msg->binary;
                     messageInfo["wireSize"] = (unsigned int)msg->wireSize;

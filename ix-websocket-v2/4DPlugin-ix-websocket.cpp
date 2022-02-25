@@ -796,7 +796,7 @@ void Websocket_client(PA_PluginParameters params) {
         socket_id_t idx = (socket_id_t)ob_get_n(options, L"id");
         ob_set_n(returnValue, L"id", idx);
                 
-        webSocket->setOnMessageCallback([idx](const ix::WebSocketMessagePtr& msg) {
+        webSocket->setOnMessageCallback([idx](const ix::WebSocketMessagePtr& msg) mutable {
             
                 if (msg->type == ix::WebSocketMessageType::Message)
                 {
@@ -819,9 +819,7 @@ void Websocket_client(PA_PluginParameters params) {
                 if (msg->type == ix::WebSocketMessageType::Open)
                 {
                     Json::Value openInfo(Json::objectValue);
-                    
-                    openInfo["URL"] = URL;
-                    
+                                        
                     openInfo["uri"] = msg->openInfo.uri;
                     
                     Json::Value headers(Json::objectValue);
@@ -846,9 +844,7 @@ void Websocket_client(PA_PluginParameters params) {
                 if (msg->type == ix::WebSocketMessageType::Close)
                 {
                     Json::Value closeInfo(Json::objectValue);
-                 
-                    closeInfo["URL"] = URL;
-                    
+                                     
                     closeInfo["code"] = msg->closeInfo.code;
                     closeInfo["reason"] = msg->closeInfo.reason;
                     closeInfo["remote"] = msg->closeInfo.remote;
@@ -1164,7 +1160,7 @@ void Websocket_server(PA_PluginParameters params) {
         
         webSocket->setOnClientMessageCallback([idx](std::shared_ptr<ix::ConnectionState> connectionState,
                                                     ix::WebSocket& webSocket,
-                                                    const ix::WebSocketMessagePtr& msg) {
+                                                    const ix::WebSocketMessagePtr& msg) mutable {
                      
             if (msg->type == ix::WebSocketMessageType::Message)
             {

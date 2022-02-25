@@ -223,7 +223,7 @@ status:=Websocket server send(socket)
 |socket.message|Text|optional|
 |socket.uri|Text or Collection of Text|optional|
 |status|Object||
-|status.statuses[]|Collection||
+|status.statuses[]|Collection of Objects||
 |status.statuses[].success|Boolean||
 |status.statuses[].compressionError|Boolean||
 |status.statuses[].payloadSize|Number||

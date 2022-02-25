@@ -128,8 +128,8 @@ status:=Websocket client send(socket)
 |status|Object||
 |status.success|Boolean||
 |status.compressionError|Boolean||
-|status.payloadSize|Boolean||
-|status.wireSize|Boolean||
+|status.payloadSize|Number||
+|status.wireSize|Number||
 
 ## Websocket client clear
 
@@ -226,8 +226,8 @@ status:=Websocket server send(socket)
 |status.statuses[]|Collection||
 |status.statuses[].success|Boolean||
 |status.statuses[].compressionError|Boolean||
-|status.statuses[].payloadSize|Boolean||
-|status.statuses[].wireSize|Boolean||
+|status.statuses[].payloadSize|Number||
+|status.statuses[].wireSize|Number||
 |status.statuses[].uri|Text||
 
 by default, message is sent to all connected clients. to target a specific client, pass `uri`

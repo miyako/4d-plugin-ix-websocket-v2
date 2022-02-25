@@ -14,6 +14,8 @@
 		18B684FB06944F2000CC6A1E /* PublicTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = 18B684F406944F2000CC6A1E /* PublicTypes.h */; };
 		18B684FF06944F8800CC6A1E /* 4DPlugin-ix-websocket.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 18B684FE06944F8800CC6A1E /* 4DPlugin-ix-websocket.cpp */; };
 		8D01CCCA0486CAD60068D4B7 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C167DFE841241C02AAC07 /* InfoPlist.strings */; };
+		D11C677527C7F623003A216D /* libcrypto.a in Frameworks */ = {isa = PBXBuildFile; fileRef = D1C71A6B27C7396200477F09 /* libcrypto.a */; };
+		D11C677627C7F623003A216D /* libssl.a in Frameworks */ = {isa = PBXBuildFile; fileRef = D1C71A6727C7392600477F09 /* libssl.a */; };
 		D120937F13534DCC00A72CAA /* 4DPlugin-ix-websocket.h in Headers */ = {isa = PBXBuildFile; fileRef = D120937E13534DCC00A72CAA /* 4DPlugin-ix-websocket.h */; };
 		D130064F12F02D9700702C0E /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D130064E12F02D9700702C0E /* Cocoa.framework */; };
 		D13116A91A03ACB700DE1322 /* 4DPluginAPI.c in Sources */ = {isa = PBXBuildFile; fileRef = D13116A81A03ACB700DE1322 /* 4DPluginAPI.c */; settings = {COMPILER_FLAGS = "-Wno-multichar"; }; };
@@ -84,6 +86,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D11C677527C7F623003A216D /* libcrypto.a in Frameworks */,
+				D11C677627C7F623003A216D /* libssl.a in Frameworks */,
 				D1C71A6F27C7399A00477F09 /* libz.tbd in Frameworks */,
 				D1C71A6E27C7398C00477F09 /* Security.framework in Frameworks */,
 				D1C71A5527C730B700477F09 /* libjsoncpp.a in Frameworks */,

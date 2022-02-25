@@ -16,8 +16,11 @@
 #include <ixwebsocket/IXNetSystem.h>
 #include <ixwebsocket/IXWebSocket.h>
 #include <ixwebsocket/IXUserAgent.h>
-#include <iostream>
+#include <ixwebsocket/IXWebSocketServer.h>
 
+#include <openssl/ssl.h>
+
+#include <iostream>
 #include <mutex>
 
 void listenerInit(void);
@@ -57,7 +60,6 @@ void Websocket_client_send(PA_PluginParameters params);
 void Websocket_server_send(PA_PluginParameters params);
 void Websocket_client_clear(PA_PluginParameters params);
 void Websocket_server_clear(PA_PluginParameters params);
-void Websocket_server_clients(PA_PluginParameters params);
 void Websocket_Get_method(PA_PluginParameters params);
 void Websocket_SET_METHOD(PA_PluginParameters params);
 

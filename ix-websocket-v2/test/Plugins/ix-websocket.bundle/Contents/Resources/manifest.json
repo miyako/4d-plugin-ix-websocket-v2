@@ -34,12 +34,12 @@
         },
         {
             "theme": "websocket client",
-            "syntax": "Websocket client send(&J;&O):J",
+            "syntax": "Websocket client send(&J):J",
             "threadSafe": true
         },
         {
             "theme": "websocket server",
-            "syntax": "Websocket server send(&J;&O):C",
+            "syntax": "Websocket server send(&J):J",
             "threadSafe": true
         },
         {
@@ -50,11 +50,6 @@
         {
             "theme": "websocket server",
             "syntax": "Websocket server clear(&J):J",
-            "threadSafe": true
-        },
-        {
-            "theme": "websocket server",
-            "syntax": "Websocket server clients(&J):C",
             "threadSafe": true
         },
         {

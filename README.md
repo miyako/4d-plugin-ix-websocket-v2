@@ -6,6 +6,10 @@
 # 4d-plugin-ix-websocket-v2
 Simple websocket based on [IXWebSocket-11.0.8](https://github.com/machinezone/IXWebSocket/releases/tag/v11.0.8)
 
+### build notes
+
+on Mac, add `USE_OPEN_SSL`. TLS is not supported with [AppleSSL backend](https://machinezone.github.io/IXWebSocket/design/).   
+
 ## Websocket SET METHOD
 
 callback is invoked for the following events:
@@ -57,12 +61,16 @@ socket:=Websocket client(options)
 |options.enablePong|Boolean|optional|
 |options.enablePerMessageDeflate|Boolean|optional|
 |options.maxWaitBetweenReconnectionRetries|Number|optional, milliseconds|
+|options.certFile|Text|optional, PEM|
+|options.keyFile|Text|optional, PEM|
+|options.caFile|Text|optional, PEM|
+|options.ciphers|Text|optional|
+|options.tls|Boolean|optional|
 |socket|Object||
-|socket.id|Number|unique identifier|
+|socket.id|Number|unique identifier (positive)|
 
 not implemented: 
 
-* setTLSOptions
 * setPerMessageDeflateOptions
 * addSubProtocol
 
@@ -86,7 +94,7 @@ status:=Websocket client start(socket)
 |status.uri|Text||
 |status.errorStr|Text|on failure|
 
-also any `Websocket client` property can be modified
+`Websocket client` property can be modified while the client is stopped
 
 ## Websocket client stop
 
@@ -109,7 +117,7 @@ status:=Websocket client stop(socket)
 send message
 
 ```4d
-status:=Websocket client send(socket{; data})
+status:=Websocket client send(socket)
 ```
 
 |Parameter|Type|Description|
@@ -117,14 +125,11 @@ status:=Websocket client send(socket{; data})
 |socket|Object||
 |socket.id|Number|socket unique identifier|
 |socket.message|Text|optional|
-|data|BLOB||
 |status|Object||
 |status.success|Boolean||
 |status.compressionError|Boolean||
 |status.payloadSize|Boolean||
 |status.wireSize|Boolean||
-
-`data` is sent as binary if `message` is not passed.
 
 ## Websocket client clear
 
@@ -140,3 +145,90 @@ status:=Websocket client clear(socket)
 |socket.id|Number|socket unique identifier|
 |status|Object||
 |status.success|Boolean||
+
+## Websocket server
+
+create server object
+
+```4d
+socket:=Websocket server(options)
+```
+
+|Parameter|Type|Description|
+|-|-|-|
+|options|Object||
+|options.port|Number|optional|
+|options.backlog|Number|optional|
+|options.handshakeTimeoutSecs|Number|optional|
+|options.addressFamily|Number|optional|
+|options.maxConnections|Number|optional|
+|options.host|Text|optional|
+|options.enablePong|Boolean|optional|
+|options.enablePerMessageDeflate|Boolean|optional|
+|options.certFile|Text|optional, PEM|
+|options.keyFile|Text|optional, PEM|
+|options.caFile|Text|optional, PEM|
+|options.ciphers|Text|optional|
+|options.tls|Boolean|optional|
+|socket|Object||
+|socket.id|Number|unique identifier (negative)|
+
+## Websocket server start
+
+listen and start server object
+
+```4d
+status:=Websocket client start(socket)
+```
+
+|Parameter|Type|Description|
+|-|-|-|
+|socket|Object||
+|socket.id|Number|socket unique identifier|
+|status|Object||
+|status.headers|Object||
+|status.http_status|Number||
+|status.success|Boolean||
+|status.uri|Text||
+|status.errorStr|Text|on failure|
+
+`Websocket server` property other than `port` `host` `backlog` `maxConnections` `handshakeTimeoutSecs` `addressFamily` can be modified while the server is stopped
+
+## Websocket server stop
+
+stop server object
+
+```4d
+status:=Websocket server stop(socket)
+```
+
+|Parameter|Type|Description|
+|-|-|-|
+|socket|Object||
+|socket.id|Number|socket unique identifier|
+|socket.code|Number|optional|
+|socket.reason|Text|optional|
+|status|Object|not used|
+
+## Websocket server send
+
+send message
+
+```4d
+status:=Websocket server send(socket)
+```
+
+|Parameter|Type|Description|
+|-|-|-|
+|socket|Object||
+|socket.id|Number|socket unique identifier|
+|socket.message|Text|optional|
+|socket.uri|Text or Collection of Text|optional|
+|status|Object||
+|status.success|Boolean||
+|status.compressionError|Boolean||
+|status.payloadSize|Boolean||
+|status.wireSize|Boolean||
+
+by default, message is sent to all connected clients. to target a specific client, pass `uri`
+

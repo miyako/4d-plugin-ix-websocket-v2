@@ -1,4 +1,4 @@
-//%attributes = {}
+//%attributes = {"invisible":true}
 #DECLARE($type : Integer; $socket : Integer; $message : Text)
 
 If (Storage:C1525.CB#Null:C1517)

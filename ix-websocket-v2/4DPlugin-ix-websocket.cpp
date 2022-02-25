@@ -19,8 +19,35 @@ std::mutex globalMutex2;/* for LISTENER_METHOD */
 std::mutex globalMutex3;/* PROCESS_SHOULD_TERMINATE */
 std::mutex globalMutex4;/* PROCESS_SHOULD_RESUME */
 std::mutex globalMutex5; /* for object reference */
+std::mutex globalMutex6; /* for object reference */
 
 std::map<socket_id_t, ix::WebSocket*> _websockets;
+std::map<socket_id_t, ix::WebSocketServer*> _websocketservers;
+
+static ix::WebSocketServer * _serverCreate(int port,
+                                           const std::string& host,
+                                           int backlog,
+                                           size_t maxConnections,
+                                           int handshakeTimeoutSecs,
+                                           int addressFamily,
+                                           socket_id_t *idx){
+
+    std::lock_guard<std::mutex> lock(globalMutex6);
+    
+    ix::WebSocketServer *webSocket = new ix::WebSocketServer(port, host, backlog, maxConnections, handshakeTimeoutSecs, addressFamily);
+
+    socket_id_t i = -1;
+    
+    while (_websocketservers.find(i) != _websocketservers.end()) {
+        i--;
+    }
+    
+    _websocketservers.insert(std::map<socket_id_t, ix::WebSocketServer*>::value_type(i, webSocket));
+    
+    *idx = i;
+    
+    return webSocket;
+}
 
 static ix::WebSocket * _socketCreate(socket_id_t *idx){
 
@@ -39,6 +66,29 @@ static ix::WebSocket * _socketCreate(socket_id_t *idx){
     *idx = i;
     
     return webSocket;
+}
+
+static bool _serverDelete(socket_id_t i){
+    
+    bool success = false;
+    
+    std::lock_guard<std::mutex> lock(globalMutex6);
+        
+    std::map<socket_id_t, ix::WebSocketServer*>::iterator pos = _websocketservers.find(i);
+    
+    if(pos != _websocketservers.end()) {
+        
+        ix::WebSocketServer *webSocket = pos->second;
+
+        webSocket->stop();
+        delete webSocket;
+
+        _websocketservers.erase(pos);
+        
+        success = true;
+    }
+ 
+    return success;
 }
 
 static bool _socketDelete(socket_id_t i){
@@ -64,6 +114,23 @@ static bool _socketDelete(socket_id_t i){
     return success;
 }
 
+static void _serverDeleteAll(){
+    
+    std::lock_guard<std::mutex> lock(globalMutex6);
+        
+    std::map<socket_id_t, ix::WebSocketServer*>::iterator it;
+    
+    for(it = _websocketservers.begin(); it != _websocketservers.end(); ++it)
+        {
+            ix::WebSocketServer *webSocket = it->second;
+
+            webSocket->stop();
+            delete webSocket;
+        }
+    
+    _websocketservers.clear();
+}
+
 static void _socketDeleteAll(){
     
     std::lock_guard<std::mutex> lock(globalMutex5);
@@ -79,6 +146,21 @@ static void _socketDeleteAll(){
         }
     
     _websockets.clear();
+}
+
+ix::WebSocketServer*_serverGet(socket_id_t i){
+    
+    std::lock_guard<std::mutex> lock(globalMutex6);
+    
+    ix::WebSocketServer *webSocket = NULL;
+    
+    std::map<socket_id_t, ix::WebSocketServer*>::iterator pos = _websocketservers.find(i);
+    
+    if(pos != _websocketservers.end()) {
+        webSocket = pos->second;
+    }
+    
+    return webSocket;
 }
 
 ix::WebSocket*_socketGet(socket_id_t i){
@@ -233,15 +315,6 @@ void listenerLoop() {
 
     if(1)
     {
-        std::lock_guard<std::mutex> lock(globalMutex);
-
-        IXWS::MESSAGE_TYPE.clear();
-        IXWS::MESSAGE_DATA.clear();
-        IXWS::WEBSOCKET_ID.clear();
-    }
-
-    if(1)
-    {
         std::lock_guard<std::mutex> lock(globalMutex2);
 
         IXWS::LISTENER_METHOD.setUTF16String((PA_Unichar *)"\0\0", 0);
@@ -255,7 +328,17 @@ void listenerLoop() {
     }
     
     _socketDeleteAll();
+    _serverDeleteAll();
+    
+    if(1)
+    {
+        std::lock_guard<std::mutex> lock(globalMutex);
 
+        IXWS::MESSAGE_TYPE.clear();
+        IXWS::MESSAGE_DATA.clear();
+        IXWS::WEBSOCKET_ID.clear();
+    }
+    
     PA_KillProcess();
 }
 
@@ -435,7 +518,7 @@ void PluginMain(PA_long32 selector, PA_PluginParameters params) {
         {
             case kInitPlugin :
             case kServerInitPlugin :
-//                PA_RunInMainProcess((PA_RunInMainProcessProcPtr)OnStartup, NULL);
+                PA_RunInMainProcess((PA_RunInMainProcessProcPtr)OnStartup, NULL);
                 break;
                 
             case kCloseProcess :
@@ -444,7 +527,7 @@ void PluginMain(PA_long32 selector, PA_PluginParameters params) {
                 
             case kServerDeinitPlugin :
             case kDeinitPlugin :
-//                PA_RunInMainProcess((PA_RunInMainProcessProcPtr)OnExit, NULL);
+                PA_RunInMainProcess((PA_RunInMainProcessProcPtr)OnExit, NULL);
                 break;
 			// --- ix-websocket
             
@@ -479,12 +562,9 @@ void PluginMain(PA_long32 selector, PA_PluginParameters params) {
 				Websocket_server_clear(params);
 				break;
 			case 11 :
-				Websocket_server_clients(params);
-				break;
-			case 12 :
                 Websocket_Get_method(params);
 				break;
-			case 13 :
+			case 12 :
                 Websocket_SET_METHOD(params);
 				break;
 
@@ -525,6 +605,21 @@ void Websocket_SET_METHOD(PA_PluginParameters params) {
 
 #pragma mark Client
 
+static ix::WebSocket *getWebSocket(PA_ObjectRef options) {
+    
+    ix::WebSocket *webSocket = NULL;
+    
+    if(options) {
+        
+        if(ob_is_defined(options, L"id")) {
+            webSocket = _socketGet((socket_id_t)ob_get_n(options, L"id"));
+        }
+        
+    }
+    
+    return webSocket;
+}
+
 static void configureClient(ix::WebSocket *webSocket, PA_ObjectRef options) {
 
     if(webSocket != NULL) {
@@ -535,10 +630,10 @@ static void configureClient(ix::WebSocket *webSocket, PA_ObjectRef options) {
             
             CUTF8String stringValue;
             if(ob_is_defined(options, L"URL")) {
-                ob_get_s(options, L"URL", &stringValue);
-                URL = (const char *)stringValue.c_str();
-                webSocket->setUrl(URL);
-                
+                if(ob_get_s(options, L"URL", &stringValue)){
+                    URL = (const char *)stringValue.c_str();
+                    webSocket->setUrl(URL);
+                }
             }
             
             if(ob_is_defined(options, L"pingInterval")) {
@@ -622,6 +717,37 @@ static void configureClient(ix::WebSocket *webSocket, PA_ObjectRef options) {
                     PA_ClearVariable(&v);
                 }
             }
+            
+            ix::SocketTLSOptions TLSOptions;
+                        
+            if(ob_is_defined(options, L"certFile")) {
+                if(ob_get_s(options, L"certFile", &stringValue)){
+                    TLSOptions.certFile = (const char *)stringValue.c_str();
+                }
+            }
+            
+            if(ob_is_defined(options, L"keyFile")) {
+                if(ob_get_s(options, L"keyFile", &stringValue)){
+                    TLSOptions.keyFile = (const char *)stringValue.c_str();
+                }
+            }
+            
+            if(ob_is_defined(options, L"caFile")) {
+                if(ob_get_s(options, L"caFile", &stringValue)){
+                    TLSOptions.caFile = (const char *)stringValue.c_str();
+                }
+            }
+            
+            if(ob_is_defined(options, L"ciphers")) {
+                if(ob_get_s(options, L"ciphers", &stringValue)){
+                    TLSOptions.ciphers = (const char *)stringValue.c_str();
+                }
+            }
+
+            if(ob_is_defined(options, L"tls")) {
+                TLSOptions.tls = ob_get_b(options, L"tls");
+                webSocket->setTLSOptions(TLSOptions);
+            }
         }
         
     }
@@ -648,6 +774,7 @@ static bool deleteWebSocket(PA_ObjectRef options) {
     if(options) {
         
         socket_id_t idx = (socket_id_t)ob_get_n(options, L"id");
+        
         return _socketDelete(idx);
 
     }
@@ -666,18 +793,28 @@ void Websocket_client(PA_PluginParameters params) {
 
         configureClient(webSocket, options);
         
-        int idx = (socket_id_t)ob_get_n(options, L"id");
+        socket_id_t idx = (socket_id_t)ob_get_n(options, L"id");
         ob_set_n(returnValue, L"id", idx);
         
-        webSocket->setOnMessageCallback([idx](const ix::WebSocketMessagePtr& msg) {
-            if(1)
-            {
-//                std::lock_guard<std::mutex> lock(globalMutex);
-
+        const std::string URL = webSocket->getUrl();
+        
+        webSocket->setOnMessageCallback([URL,idx](const ix::WebSocketMessagePtr& msg) {
+            
                 if (msg->type == ix::WebSocketMessageType::Message)
                 {
-           
-                    IXWS::MESSAGE_DATA.push_back(std::string(msg->str.data(), msg->wireSize));
+                    Json::Value messageInfo(Json::objectValue);
+                             
+                    messageInfo["URL"] = URL;
+                    
+                    messageInfo["str"] = msg->str;
+                    messageInfo["binary"] = msg->binary;
+                    messageInfo["wireSize"] = (unsigned int)msg->wireSize;
+                    
+                    Json::StreamWriterBuilder writer;
+                    writer["indentation"] = "";
+                    std::string json = Json::writeString(writer, messageInfo);
+                    
+                    IXWS::MESSAGE_DATA.push_back(json);
                     IXWS::MESSAGE_TYPE.push_back((int)msg->type);
                     IXWS::WEBSOCKET_ID.push_back(idx);
                     
@@ -686,6 +823,8 @@ void Websocket_client(PA_PluginParameters params) {
                 if (msg->type == ix::WebSocketMessageType::Open)
                 {
                     Json::Value openInfo(Json::objectValue);
+                    
+                    openInfo["URL"] = URL;
                     
                     openInfo["uri"] = msg->openInfo.uri;
                     
@@ -711,6 +850,8 @@ void Websocket_client(PA_PluginParameters params) {
                 if (msg->type == ix::WebSocketMessageType::Close)
                 {
                     Json::Value closeInfo(Json::objectValue);
+                 
+                    closeInfo["URL"] = URL;
                     
                     closeInfo["code"] = msg->closeInfo.code;
                     closeInfo["reason"] = msg->closeInfo.reason;
@@ -745,29 +886,12 @@ void Websocket_client(PA_PluginParameters params) {
                     IXWS::WEBSOCKET_ID.push_back(idx);
                 }
 
-            }
-            
             listenerLoopExecute();
         });
         
     }
     
     PA_ReturnObject(params, returnValue);
-}
-
-static ix::WebSocket *getWebSocket(PA_ObjectRef options) {
-    
-    ix::WebSocket *webSocket = NULL;
-    
-    if(options) {
-        
-        if(ob_is_defined(options, L"id")) {
-            webSocket = _socketGet((socket_id_t)ob_get_n(options, L"id"));
-        }
-        
-    }
-    
-    return webSocket;
 }
 
 void Websocket_client_start(PA_PluginParameters params) {
@@ -788,20 +912,17 @@ void Websocket_client_start(PA_PluginParameters params) {
         }
         
         ix::WebSocketInitResult status = webSocket->connect(timeoutSecs);
-
-        ix::WebSocketHttpHeaders headers = status.headers;
-
-        ix::WebSocketHttpHeaders::iterator it;
                 
-        PA_ObjectRef _headers = PA_CreateObject();
+        PA_ObjectRef headers = PA_CreateObject();
         
-        for(it = headers.begin(); it != headers.end(); ++it){
-            std::string key = it->first;
-            std::string value = it->second;
-            ob_set_s(_headers, key.c_str(), value.c_str());
+        for (auto it : status.headers)
+        {
+            std::string key = it.first;
+            std::string value = it.second;
+            ob_set_s(headers, key.c_str(), value.c_str());
         }
         
-        ob_set_o(returnValue, L"headers", _headers);
+        ob_set_o(returnValue, L"headers", headers);
         ob_set_n(returnValue, L"http_status", status.http_status);
         ob_set_b(returnValue, L"success", status.success);
         ob_set_s(returnValue, L"uri", status.uri.c_str());
@@ -863,38 +984,17 @@ void Websocket_client_send(PA_PluginParameters params) {
         
         CUTF8String stringValue;
         if(ob_is_defined(options, L"message")) {
-            ob_get_s(options, L"message", &stringValue);
-            message = (const char *)stringValue.c_str();
-           
-            ix::WebSocketSendInfo sendInfo = webSocket->sendText(message);
-            
-            ob_set_b(returnValue, L"success", sendInfo.success);
-            ob_set_b(returnValue, L"compressionError", sendInfo.compressionError);
-            ob_set_n(returnValue, L"payloadSize", sendInfo.payloadSize);
-            ob_set_n(returnValue, L"wireSize", sendInfo.wireSize);
-        }else{
-            PA_Handle h = PA_GetBlobHandleParameter( params, 2 );
-            
-            if(h)
-            {
-                if(PA_GetHandleSize(h) != 0) {
-                    
-                    const std::string data = std::string((const char *)PA_LockHandle(h), PA_GetHandleSize(h));
-                    
-                    ix::WebSocketSendInfo sendInfo = webSocket->sendBinary(data);
-                    
-                    ob_set_b(returnValue, L"success", sendInfo.success);
-                    ob_set_b(returnValue, L"compressionError", sendInfo.compressionError);
-                    ob_set_n(returnValue, L"payloadSize", sendInfo.payloadSize);
-                    ob_set_n(returnValue, L"wireSize", sendInfo.wireSize);
-                    
-                    PA_UnlockHandle(h);
-                }
-       
+            if(ob_get_s(options, L"message", &stringValue)){
+                message = (const char *)stringValue.c_str();
+               
+                ix::WebSocketSendInfo sendInfo = webSocket->sendText(message);
+                
+                ob_set_b(returnValue, L"success", sendInfo.success);
+                ob_set_b(returnValue, L"compressionError", sendInfo.compressionError);
+                ob_set_n(returnValue, L"payloadSize", sendInfo.payloadSize);
+                ob_set_n(returnValue, L"wireSize", sendInfo.wireSize);
             }
-            
         }
-    
     }
 
     PA_ReturnObject(params, returnValue);
@@ -912,30 +1012,406 @@ void Websocket_client_clear(PA_PluginParameters params) {
 
 #pragma mark Server
 
+static ix::WebSocketServer *getWebSocketServer(PA_ObjectRef options) {
+    
+    ix::WebSocketServer *webSocket = NULL;
+    
+    if(options) {
+        
+        if(ob_is_defined(options, L"id")) {
+            webSocket = _serverGet((socket_id_t)ob_get_n(options, L"id"));
+        }
+        
+    }
+    
+    return webSocket;
+}
+
+static void configureServer(ix::WebSocketServer *webSocket, PA_ObjectRef options) {
+
+    if(webSocket != NULL) {
+        
+        if(options) {
+                        
+            if(ob_is_defined(options, L"enablePong")) {
+                bool enablePong = ob_get_b(options, L"enablePong");
+                if(enablePong) {
+                    webSocket->enablePong();
+                }else{
+                    webSocket->disablePong();
+                }
+            }
+           
+            if(ob_is_defined(options, L"enablePerMessageDeflate")) {
+                bool enablePerMessageDeflate = ob_get_b(options, L"enablePerMessageDeflate");
+                if(enablePerMessageDeflate) {
+
+                }else{
+                    webSocket->disablePerMessageDeflate();
+                }
+            }
+         
+            ix::SocketTLSOptions TLSOptions;
+            
+            CUTF8String stringValue;
+            
+            if(ob_is_defined(options, L"certFile")) {
+                if(ob_get_s(options, L"certFile", &stringValue)){
+                    TLSOptions.certFile = (const char *)stringValue.c_str();
+                }
+            }
+            
+            if(ob_is_defined(options, L"keyFile")) {
+                if(ob_get_s(options, L"keyFile", &stringValue)){
+                    TLSOptions.keyFile = (const char *)stringValue.c_str();
+                }
+            }
+            
+            if(ob_is_defined(options, L"caFile")) {
+                if(ob_get_s(options, L"caFile", &stringValue)){
+                    TLSOptions.caFile = (const char *)stringValue.c_str();
+                }
+            }
+            
+            if(ob_is_defined(options, L"ciphers")) {
+                if(ob_get_s(options, L"ciphers", &stringValue)){
+                    TLSOptions.ciphers = (const char *)stringValue.c_str();
+                }
+            }
+
+            if(ob_is_defined(options, L"tls")) {
+                TLSOptions.tls = ob_get_b(options, L"tls");
+                webSocket->setTLSOptions(TLSOptions);
+            }
+
+        }
+        
+    }
+
+}
+
+static ix::WebSocketServer *createWebSocketServer(PA_ObjectRef options) {
+
+    ix::WebSocketServer *webSocket = NULL;
+    
+    int port = ix::SocketServer::kDefaultPort;
+    std::string host = ix::SocketServer::kDefaultHost;
+    int backlog = ix::SocketServer::kDefaultTcpBacklog;
+    size_t maxConnections = ix::SocketServer::kDefaultMaxConnections;
+    int handshakeTimeoutSecs = ix::WebSocketServer::kDefaultHandShakeTimeoutSecs;
+    int addressFamily = ix::SocketServer::kDefaultAddressFamily;
+    
+    if(options) {
+        
+        if(ob_is_defined(options, L"port")) {
+            port = ob_get_n(options, L"port");
+        }
+        
+        if(ob_is_defined(options, L"backlog")) {
+            backlog = ob_get_n(options, L"backlog");
+        }
+       
+        if(ob_is_defined(options, L"handshakeTimeoutSecs")) {
+            handshakeTimeoutSecs = ob_get_n(options, L"handshakeTimeoutSecs");
+        }
+        
+        if(ob_is_defined(options, L"addressFamily")) {
+            addressFamily = ob_get_n(options, L"addressFamily");
+        }
+        
+        if(ob_is_defined(options, L"maxConnections")) {
+            maxConnections = ob_get_n(options, L"maxConnections");
+        }
+        
+        CUTF8String stringValue;
+        if(ob_is_defined(options, L"host")) {
+            if(ob_get_s(options, L"host", &stringValue)){
+                host = (const char *)stringValue.c_str();
+            }
+        }
+
+        socket_id_t idx = 0;
+        webSocket = _serverCreate(port, host, backlog, maxConnections, handshakeTimeoutSecs, addressFamily, &idx);
+        ob_set_n(options, L"id", idx);
+
+    }
+    
+    return webSocket;
+}
+
+static bool deleteWebSocketServer(PA_ObjectRef options) {
+    
+    if(options) {
+        
+        socket_id_t idx = (socket_id_t)ob_get_n(options, L"id");
+        
+        return _serverDelete(idx);
+
+    }
+
+    return false;
+}
+
 void Websocket_server(PA_PluginParameters params) {
 
+    PA_ObjectRef options = PA_GetObjectParameter(params, 1);
+    PA_ObjectRef returnValue = PA_CreateObject();
+        
+    ix::WebSocketServer *webSocket = createWebSocketServer(options);
+    
+    if(webSocket != NULL) {
+    
+        configureServer(webSocket, options);
+        
+        socket_id_t idx = (socket_id_t)ob_get_n(options, L"id");
+        ob_set_n(returnValue, L"id", idx);
+        
+        webSocket->setOnClientMessageCallback([idx](std::shared_ptr<ix::ConnectionState> connectionState,
+                                                    ix::WebSocket& webSocket,
+                                                    const ix::WebSocketMessagePtr& msg) {
+                     
+            if (msg->type == ix::WebSocketMessageType::Message)
+            {
+       
+                Json::Value messageInfo(Json::objectValue);
+                
+                messageInfo["uri"] = webSocket.getUrl();
+                
+                messageInfo["remoteIp"] = connectionState->getRemoteIp();
+                messageInfo["remotePort"] = connectionState->getRemotePort();
+                                
+                messageInfo["str"] = msg->str;
+                messageInfo["binary"] = msg->binary;
+                messageInfo["wireSize"] = (unsigned int)msg->wireSize;
+                
+                Json::StreamWriterBuilder writer;
+                writer["indentation"] = "";
+                std::string json = Json::writeString(writer, messageInfo);
+
+                IXWS::MESSAGE_DATA.push_back(json);
+                IXWS::MESSAGE_TYPE.push_back((int)msg->type);
+                IXWS::WEBSOCKET_ID.push_back(idx);
+                
+            }else
+                
+            if (msg->type == ix::WebSocketMessageType::Open)
+            {
+                Json::Value openInfo(Json::objectValue);
+                                
+                openInfo["remoteIp"] = connectionState->getRemoteIp();
+                openInfo["remotePort"] = connectionState->getRemotePort();
+                
+                openInfo["uri"] = msg->openInfo.uri;
+                webSocket.setUrl(msg->openInfo.uri);
+                
+                Json::Value headers(Json::objectValue);
+
+                for (auto it : msg->openInfo.headers)
+                {
+                    headers[it.first] = it.second;
+                }
+                
+                openInfo["headers"] = headers;
+                
+                Json::StreamWriterBuilder writer;
+                writer["indentation"] = "";
+                std::string json = Json::writeString(writer, openInfo);
+                
+                IXWS::MESSAGE_DATA.push_back(json);
+                IXWS::MESSAGE_TYPE.push_back((int)msg->type);
+                IXWS::WEBSOCKET_ID.push_back(idx);
+                
+            }else
+                
+            if (msg->type == ix::WebSocketMessageType::Close)
+            {
+                Json::Value closeInfo(Json::objectValue);
+                
+                closeInfo["uri"] = webSocket.getUrl();
+                
+                closeInfo["remoteIp"] = connectionState->getRemoteIp();
+                closeInfo["remotePort"] = connectionState->getRemotePort();
+                
+                closeInfo["code"] = msg->closeInfo.code;
+                closeInfo["reason"] = msg->closeInfo.reason;
+                closeInfo["remote"] = msg->closeInfo.remote;
+                
+                Json::StreamWriterBuilder writer;
+                writer["indentation"] = "";
+                std::string json = Json::writeString(writer, closeInfo);
+                
+                IXWS::MESSAGE_DATA.push_back(json);
+                IXWS::MESSAGE_TYPE.push_back((int)msg->type);
+                IXWS::WEBSOCKET_ID.push_back(idx);
+                
+            }else
+            
+            if (msg->type == ix::WebSocketMessageType::Error) {
+                
+                Json::Value errorInfo(Json::objectValue);
+                
+                errorInfo["retries"] = msg->errorInfo.retries;
+                errorInfo["wait_time"] = msg->errorInfo.wait_time;
+                errorInfo["http_status"] = msg->errorInfo.http_status;
+                errorInfo["reason"] = msg->errorInfo.reason;
+                errorInfo["decompressionError"] = msg->errorInfo.decompressionError;
+
+                Json::StreamWriterBuilder writer;
+                writer["indentation"] = "";
+                std::string json = Json::writeString(writer, errorInfo);
+                
+                IXWS::MESSAGE_DATA.push_back(json);
+                IXWS::MESSAGE_TYPE.push_back((int)msg->type);
+                IXWS::WEBSOCKET_ID.push_back(idx);
+            }
+            
+            listenerLoopExecute();
+        });
+          
+    }
+
+    PA_ReturnObject(params, returnValue);
 }
 
 void Websocket_server_start(PA_PluginParameters params) {
 
+    PA_ObjectRef options = PA_GetObjectParameter(params, 1);
+    PA_ObjectRef returnValue = PA_CreateObject();
+        
+    ix::WebSocketServer *webSocket = getWebSocketServer(options);
+    
+    if(webSocket != NULL) {
+        
+        configureServer(webSocket, options);
+
+        auto res = webSocket->listen();
+        if (!res.first)
+        {
+            ob_set_b(returnValue, L"success", false);
+            ob_set_s(returnValue, L"errStr", res.second.c_str());
+        }else{
+            ob_set_b(returnValue, L"success", true);
+            webSocket->start();
+        }
+    }
+    
+    PA_ReturnObject(params, returnValue);
 }
 
 void Websocket_server_stop(PA_PluginParameters params) {
 
+    PA_ObjectRef options = PA_GetObjectParameter(params, 1);
+    PA_ObjectRef returnValue = PA_CreateObject();
+    
+    ix::WebSocketServer *webSocket = getWebSocketServer(options);
+    
+    if(webSocket != NULL) {
+        
+        webSocket->stop();
+    }
+    
+    PA_ReturnObject(params, returnValue);
 }
 
 void Websocket_server_send(PA_PluginParameters params) {
 
+    PA_ObjectRef options = PA_GetObjectParameter(params, 1);
+    PA_ObjectRef returnValue = PA_CreateObject();
+        
+    PA_CollectionRef statuses = PA_CreateCollection();
+    
+    ix::WebSocketServer *webSocket = getWebSocketServer(options);
+    
+    if(webSocket != NULL) {
+        
+        Json::Value uris(Json::arrayValue);
+        
+        CUTF8String stringValue;
+        
+        if(ob_is_defined(options, L"uri")) {
+            PA_CollectionRef uri = ob_get_c(options, L"uri");
+            if(!uri) {
+                CUTF16String stringValue16;
+                if(ob_get_a(options, L"uri", &stringValue16)){
+                    if(stringValue16.length() != 0){
+                        uri = PA_CreateCollection();
+                        PA_Variable v = PA_CreateVariable(eVK_Unistring);
+                        PA_Unistring value = PA_CreateUnistring((PA_Unichar *)stringValue16.c_str());
+                        PA_SetStringVariable(&v, &value);
+                        PA_SetCollectionElement(uri, PA_GetCollectionLength(uri), v);
+                        PA_ClearVariable(&v);
+                    }
+                }
+            }
+            if(uri){
+                PA_long32 len = PA_GetCollectionLength(uri);
+                for(PA_long32 i = 0; i < len; ++i) {
+                    PA_Variable v = PA_GetCollectionElement(uri, i);
+                    if(PA_GetVariableKind(v) == eVK_Unistring) {
+                        PA_Unistring u = PA_GetStringVariable(v);
+                        C_TEXT t;
+                        t.setUTF16String(&u);
+                        CUTF8String u8;
+                        t.copyUTF8String(&u8);
+                        std::string s((const char *)u8.c_str());
+                        uris.append(s);
+                    }
+                }
+            }
+        }
+        
+        std::string message;
+
+        if(ob_is_defined(options, L"message")) {
+            if(ob_get_s(options, L"message", &stringValue)){
+                message = (const char *)stringValue.c_str();
+                
+                std::set<std::shared_ptr<ix::WebSocket>> clients = webSocket->getClients();
+                for(auto client : clients) {
+
+                    std::string uri = client->getUrl();
+                    
+                    bool send = (uris.size() == 0);
+                    
+                    if(!send){
+                        for(Json::Value::const_iterator it = uris.begin() ; it != uris.end() ; it++)
+                        {
+                            JSONCPP_STRING _uri = it->asString();
+                            if(_uri == uri) {
+                                send = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if(send) {
+                        PA_ObjectRef status = PA_CreateObject();
+                        ix::WebSocketSendInfo sendInfo = client->sendText(message);
+                        ob_set_s(status, L"uri", uri.c_str());
+                        ob_set_b(status, L"success", sendInfo.success);
+                        ob_set_b(status, L"compressionError", sendInfo.compressionError);
+                        ob_set_n(status, L"payloadSize", sendInfo.payloadSize);
+                        ob_set_n(status, L"wireSize", sendInfo.wireSize);
+                        
+                        PA_Variable v = PA_CreateVariable(eVK_Object);
+                        PA_SetObjectVariable(&v, status);
+                        PA_SetCollectionElement(statuses, PA_GetCollectionLength(statuses), v);
+                    }
+                }
+            }
+        }
+    }
+    
+    ob_set_c(returnValue, L"statuses", statuses);
+    PA_ReturnObject(params, returnValue);
 }
 
 void Websocket_server_clear(PA_PluginParameters params) {
 
+    PA_ObjectRef options = PA_GetObjectParameter(params, 1);
+    PA_ObjectRef returnValue = PA_CreateObject();
+    
+    ob_set_b(returnValue, L"success", deleteWebSocketServer(options));
+    
+    PA_ReturnObject(params, returnValue);
 }
-
-void Websocket_server_clients(PA_PluginParameters params) {
-
-}
-
-
-
-

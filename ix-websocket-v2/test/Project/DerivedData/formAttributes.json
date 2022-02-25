@@ -1,7 +1,11 @@
 {
 	"forms": {
-		"CB": {
-			"timeStamp": "2022-02-24T14:31:49.327Z",
+		"SERVER": {
+			"timeStamp": "2022-02-24T20:13:10.633Z",
+			"destination": "detailScreen"
+		},
+		"CLIENT": {
+			"timeStamp": "2022-02-24T20:13:10.589Z",
 			"destination": "detailScreen"
 		}
 	}

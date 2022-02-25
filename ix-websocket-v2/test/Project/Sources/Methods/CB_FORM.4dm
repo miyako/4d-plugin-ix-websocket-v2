@@ -1,4 +1,4 @@
-//%attributes = {}
+//%attributes = {"invisible":true}
 #DECLARE($type : Integer; $socket : Integer; $message : Text)
 
 Case of 
@@ -21,10 +21,10 @@ Case of
 				GET WINDOW RECT:C443($x; $y; $right; $bottom; $window)
 				SET WINDOW RECT:C444($x; $y; $right; $bottom; $window)
 			Else 
-				$window:=Open form window:C675("CB")
-				SET WINDOW TITLE:C213("TEST"; $window)
+				$window:=Open form window:C675("SERVER")
+				SET WINDOW TITLE:C213("INFO"; $window)
 				Storage:C1525.CB:=New shared object:C1526("window"; $window)
-				DIALOG:C40("CB"; *)
+				DIALOG:C40("SERVER"; *)
 			End if 
 		End use 
 		
@@ -32,21 +32,35 @@ Case of
 		
 		$line:=New object:C1471("socket"; $socket)
 		
+		$line.message:=JSON Parse:C1218($message)
+		
 		Case of 
 			: ($type=0)
 				$line.type:="Message"
-				$line.message:=$message
 			: ($type=1)
 				$line.type:="Open"
-				$line.message:=JSON Parse:C1218($message)
 			: ($type=2)
 				$line.type:="Close"
-				$line.message:=JSON Parse:C1218($message)
 			: ($type=3)
 				$line.type:="Error"
-				$line.message:=JSON Parse:C1218($message)
 		End case 
 		
 		Form:C1466.CB.col.unshift($line)
+		Form:C1466.CB.item:=Null:C1517
+		
+		If ($socket<0)  //server socket is negative 
+			If ($line.type="Message")
+				
+				$uri:=$line.message.uri
+				
+				$col:=Split string:C1554($uri; "=")
+				If ($col.length>1)
+					$server:=New object:C1471("id"; $socket; "message"; "Hello "+$col[1]; "uri"; $uri)
+					$status:=Websocket server send($server)
+				End if 
+				
+			End if 
+			
+		End if 
 		
 End case 

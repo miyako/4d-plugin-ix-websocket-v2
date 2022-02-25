@@ -69,14 +69,22 @@ socket:=Websocket client(options)
 |socket|Object||
 |socket.id|Number|unique identifier (positive)|
 
-not implemented: 
+if `id` is passed in `options`, information is returned instead of creating a new client object.
 
-* setPerMessageDeflateOptions
-* addSubProtocol
+|Parameter|Type|Description|
+|-|-|-|
+|socket|Object||
+|socket.readyState|Text||
+|socket.URL|Text||
+|socket.perMessageDeflateOptionsEnabled|Boolean||
+|socket.automaticReconnectionEnabled|Boolean||
+|socket.maxWaitBetweenReconnectionRetries|Number||
+|socket.pingInterval|Number||
+|socket.bufferedAmount|Number||
 
 ## Websocket client start
 
-conenct and run client object
+connect and run client object
 
 ```4d
 status:=Websocket client start(socket)
@@ -110,7 +118,7 @@ status:=Websocket client stop(socket)
 |socket.id|Number|socket unique identifier|
 |socket.code|Number|optional|
 |socket.reason|Text|optional|
-|status|Object|not used|
+|status|Object|information (same as `Websocket client`)|
 
 ## Websocket client send
 
@@ -173,6 +181,13 @@ socket:=Websocket server(options)
 |socket|Object||
 |socket.id|Number|unique identifier (negative)|
 
+if `id` is passed in `options`, information is returned instead of creating a new server object.
+
+|Parameter|Type|Description|
+|-|-|-|
+|socket|Object||
+|socket.clients|Collection of Text|URLs|
+            
 ## Websocket server start
 
 listen and start server object
@@ -206,7 +221,7 @@ status:=Websocket server stop(socket)
 |-|-|-|
 |socket|Object||
 |socket.id|Number|socket unique identifier|
-|status|Object|not used|
+|status|Object|information (same as `Websocket server`)|
 
 ## Websocket server send
 

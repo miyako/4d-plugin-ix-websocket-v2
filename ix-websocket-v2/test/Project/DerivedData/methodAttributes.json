@@ -1,28 +1,22 @@
 {
 	"methods": {
+		"start": {
+			"timeStamp": "2022-02-25T03:41:23.357Z",
+			"attributes": {
+				"invisible": true
+			}
+		},
 		"CB": {
-			"timeStamp": "2022-02-25T03:16:30.000Z",
+			"timeStamp": "2022-02-25T03:41:23.356Z",
 			"attributes": {
 				"invisible": true
 			}
 		},
 		"CB_FORM": {
-			"timeStamp": "2022-02-25T03:16:30.000Z",
+			"timeStamp": "2022-02-25T03:41:23.357Z",
 			"attributes": {
 				"invisible": true
 			}
-		},
-		"start": {
-			"timeStamp": "2022-02-25T03:16:30.000Z",
-			"attributes": {
-				"invisible": true
-			}
-		},
-		"(start_server)": {
-			"timeStamp": "2022-02-25T03:16:30.000Z"
-		},
-		"(TEST)": {
-			"timeStamp": "2022-02-25T03:16:30.000Z"
 		}
 	}
 }

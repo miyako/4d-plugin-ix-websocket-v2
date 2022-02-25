@@ -1,11 +1,11 @@
 {
 	"forms": {
-		"CLIENT": {
-			"timeStamp": "2022-02-25T03:16:30.000Z",
+		"SERVER": {
+			"timeStamp": "2022-02-24T20:13:10.633Z",
 			"destination": "detailScreen"
 		},
-		"SERVER": {
-			"timeStamp": "2022-02-25T03:16:30.000Z",
+		"CLIENT": {
+			"timeStamp": "2022-02-24T20:13:10.589Z",
 			"destination": "detailScreen"
 		}
 	}

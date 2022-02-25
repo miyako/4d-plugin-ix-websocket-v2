@@ -782,105 +782,162 @@ static bool deleteWebSocket(PA_ObjectRef options) {
     return false;
 }
 
+static void Websocket_client_get_info(ix::WebSocket *webSocket, PA_ObjectRef returnValue) {
+    
+    if(webSocket) {
+        if(returnValue) {
+            
+            ix::ReadyState readyState = webSocket->getReadyState();
+            switch (readyState) {
+                case ix::ReadyState::Connecting:
+                    ob_set_s(returnValue, L"readyState", "connecting");
+                    break;
+                case ix::ReadyState::Open:
+                    ob_set_s(returnValue, L"readyState", "open");
+                    break;
+                case ix::ReadyState::Closing:
+                    ob_set_s(returnValue, L"readyState", "closing");
+                    break;
+                case ix::ReadyState::Closed:
+                    ob_set_s(returnValue, L"readyState", "closed");
+                    break;
+            }
+        
+            std::string url = webSocket->getUrl();
+            ob_set_s(returnValue, L"URL", url.c_str());
+            
+            bool perMessageDeflateOptionsEnabled = webSocket->getPerMessageDeflateOptions().enabled();
+            ob_set_b(returnValue, L"perMessageDeflateOptionsEnabled", perMessageDeflateOptionsEnabled);
+            
+            int pingInterval = webSocket->getPingInterval();
+            ob_set_n(returnValue, L"pingInterval", pingInterval);
+            
+            size_t bufferedAmount = webSocket->bufferedAmount();
+            ob_set_n(returnValue, L"bufferedAmount", bufferedAmount);
+            
+            bool automaticReconnectionEnabled = webSocket->isAutomaticReconnectionEnabled();
+            ob_set_b(returnValue, L"automaticReconnectionEnabled", automaticReconnectionEnabled);
+            
+            uint32_t maxWaitBetweenReconnectionRetries = webSocket->getMaxWaitBetweenReconnectionRetries();
+            ob_set_n(returnValue, L"maxWaitBetweenReconnectionRetries", maxWaitBetweenReconnectionRetries);
+        }
+    }
+}
+
 void Websocket_client(PA_PluginParameters params) {
 
     PA_ObjectRef options = PA_GetObjectParameter(params, 1);
     PA_ObjectRef returnValue = PA_CreateObject();
     
-    ix::WebSocket *webSocket = createWebSocket(options);
+    ix::WebSocket *webSocket = NULL;
     
-    if(webSocket != NULL) {
-
-        configureClient(webSocket, options);
+    bool getInfo = false;
+    
+    if(options) {
+        if(ob_is_defined(options, L"id")) {
+            getInfo = true;
+            webSocket = _socketGet((socket_id_t)ob_get_n(options, L"id"));
+            Websocket_client_get_info(webSocket, returnValue);
+        }
+    }
+    
+    if(!getInfo) {
         
-        socket_id_t idx = (socket_id_t)ob_get_n(options, L"id");
-        ob_set_n(returnValue, L"id", idx);
-                
-        webSocket->setOnMessageCallback([idx](const ix::WebSocketMessagePtr& msg) mutable {
+        webSocket = createWebSocket(options);
+        
+        if(webSocket != NULL) {
+
+            configureClient(webSocket, options);
             
-                if (msg->type == ix::WebSocketMessageType::Message)
-                {
-                    Json::Value messageInfo(Json::objectValue);
-                                                 
-                    messageInfo["str"] = msg->str;
-                    messageInfo["binary"] = msg->binary;
-                    messageInfo["wireSize"] = (unsigned int)msg->wireSize;
+            socket_id_t idx = (socket_id_t)ob_get_n(options, L"id");
+            ob_set_n(returnValue, L"id", idx);
                     
-                    Json::StreamWriterBuilder writer;
-                    writer["indentation"] = "";
-                    std::string json = Json::writeString(writer, messageInfo);
-                    
-                    IXWS::MESSAGE_DATA.push_back(json);
-                    IXWS::MESSAGE_TYPE.push_back((int)msg->type);
-                    IXWS::WEBSOCKET_ID.push_back(idx);
-                    
-                }else
+            webSocket->setOnMessageCallback([idx](const ix::WebSocketMessagePtr& msg) mutable {
                 
-                if (msg->type == ix::WebSocketMessageType::Open)
-                {
-                    Json::Value openInfo(Json::objectValue);
-                                        
-                    openInfo["uri"] = msg->openInfo.uri;
-                    
-                    Json::Value headers(Json::objectValue);
-
-                    for (auto it : msg->openInfo.headers)
+                    if (msg->type == ix::WebSocketMessageType::Message)
                     {
-                        headers[it.first] = it.second;
+                        Json::Value messageInfo(Json::objectValue);
+                                                     
+                        messageInfo["str"] = msg->str;
+                        messageInfo["binary"] = msg->binary;
+                        messageInfo["wireSize"] = (unsigned int)msg->wireSize;
+                        
+                        Json::StreamWriterBuilder writer;
+                        writer["indentation"] = "";
+                        std::string json = Json::writeString(writer, messageInfo);
+                        
+                        IXWS::MESSAGE_DATA.push_back(json);
+                        IXWS::MESSAGE_TYPE.push_back((int)msg->type);
+                        IXWS::WEBSOCKET_ID.push_back(idx);
+                        
+                    }else
+                    
+                    if (msg->type == ix::WebSocketMessageType::Open)
+                    {
+                        Json::Value openInfo(Json::objectValue);
+                                            
+                        openInfo["uri"] = msg->openInfo.uri;
+                        
+                        Json::Value headers(Json::objectValue);
+
+                        for (auto it : msg->openInfo.headers)
+                        {
+                            headers[it.first] = it.second;
+                        }
+                        
+                        openInfo["headers"] = headers;
+                        
+                        Json::StreamWriterBuilder writer;
+                        writer["indentation"] = "";
+                        std::string json = Json::writeString(writer, openInfo);
+                        
+                        IXWS::MESSAGE_DATA.push_back(json);
+                        IXWS::MESSAGE_TYPE.push_back((int)msg->type);
+                        IXWS::WEBSOCKET_ID.push_back(idx);
+                        
+                    }else
+                        
+                    if (msg->type == ix::WebSocketMessageType::Close)
+                    {
+                        Json::Value closeInfo(Json::objectValue);
+                                         
+                        closeInfo["code"] = msg->closeInfo.code;
+                        closeInfo["reason"] = msg->closeInfo.reason;
+                        closeInfo["remote"] = msg->closeInfo.remote;
+                        
+                        Json::StreamWriterBuilder writer;
+                        writer["indentation"] = "";
+                        std::string json = Json::writeString(writer, closeInfo);
+                        
+                        IXWS::MESSAGE_DATA.push_back(json);
+                        IXWS::MESSAGE_TYPE.push_back((int)msg->type);
+                        IXWS::WEBSOCKET_ID.push_back(idx);
+                        
+                    }else
+                    
+                    if (msg->type == ix::WebSocketMessageType::Error) {
+                        
+                        Json::Value errorInfo(Json::objectValue);
+                        
+                        errorInfo["retries"] = msg->errorInfo.retries;
+                        errorInfo["wait_time"] = msg->errorInfo.wait_time;
+                        errorInfo["http_status"] = msg->errorInfo.http_status;
+                        errorInfo["reason"] = msg->errorInfo.reason;
+                        errorInfo["decompressionError"] = msg->errorInfo.decompressionError;
+
+                        Json::StreamWriterBuilder writer;
+                        writer["indentation"] = "";
+                        std::string json = Json::writeString(writer, errorInfo);
+                        
+                        IXWS::MESSAGE_DATA.push_back(json);
+                        IXWS::MESSAGE_TYPE.push_back((int)msg->type);
+                        IXWS::WEBSOCKET_ID.push_back(idx);
                     }
-                    
-                    openInfo["headers"] = headers;
-                    
-                    Json::StreamWriterBuilder writer;
-                    writer["indentation"] = "";
-                    std::string json = Json::writeString(writer, openInfo);
-                    
-                    IXWS::MESSAGE_DATA.push_back(json);
-                    IXWS::MESSAGE_TYPE.push_back((int)msg->type);
-                    IXWS::WEBSOCKET_ID.push_back(idx);
-                    
-                }else
-                    
-                if (msg->type == ix::WebSocketMessageType::Close)
-                {
-                    Json::Value closeInfo(Json::objectValue);
-                                     
-                    closeInfo["code"] = msg->closeInfo.code;
-                    closeInfo["reason"] = msg->closeInfo.reason;
-                    closeInfo["remote"] = msg->closeInfo.remote;
-                    
-                    Json::StreamWriterBuilder writer;
-                    writer["indentation"] = "";
-                    std::string json = Json::writeString(writer, closeInfo);
-                    
-                    IXWS::MESSAGE_DATA.push_back(json);
-                    IXWS::MESSAGE_TYPE.push_back((int)msg->type);
-                    IXWS::WEBSOCKET_ID.push_back(idx);
-                    
-                }else
-                
-                if (msg->type == ix::WebSocketMessageType::Error) {
-                    
-                    Json::Value errorInfo(Json::objectValue);
-                    
-                    errorInfo["retries"] = msg->errorInfo.retries;
-                    errorInfo["wait_time"] = msg->errorInfo.wait_time;
-                    errorInfo["http_status"] = msg->errorInfo.http_status;
-                    errorInfo["reason"] = msg->errorInfo.reason;
-                    errorInfo["decompressionError"] = msg->errorInfo.decompressionError;
 
-                    Json::StreamWriterBuilder writer;
-                    writer["indentation"] = "";
-                    std::string json = Json::writeString(writer, errorInfo);
-                    
-                    IXWS::MESSAGE_DATA.push_back(json);
-                    IXWS::MESSAGE_TYPE.push_back((int)msg->type);
-                    IXWS::WEBSOCKET_ID.push_back(idx);
-                }
-
-            listenerLoopExecute();
-        });
-        
+                listenerLoopExecute();
+            });
+            
+        }
     }
     
     PA_ReturnObject(params, returnValue);
@@ -956,6 +1013,8 @@ void Websocket_client_stop(PA_PluginParameters params) {
         }
         
         webSocket->stop(code, reason);
+        
+        Websocket_client_get_info(webSocket, returnValue);
     }
     
     PA_ReturnObject(params, returnValue);
@@ -1144,124 +1203,164 @@ static bool deleteWebSocketServer(PA_ObjectRef options) {
     return false;
 }
 
+static void Websocket_server_get_info(ix::WebSocketServer *webSocket, PA_ObjectRef returnValue) {
+    
+    if(webSocket) {
+        if(returnValue) {
+            
+            PA_CollectionRef URLs = PA_CreateCollection();
+            
+            std::set<std::shared_ptr<ix::WebSocket>> clients = webSocket->getClients();
+            for(auto client : clients) {
+                std::string URL = client->getUrl();
+                C_TEXT t;
+                t.setUTF8String((const uint8_t *)URL.c_str(), (uint32_t)URL.length());
+                PA_Variable v = PA_CreateVariable(eVK_Unistring);
+                PA_Unistring value = PA_CreateUnistring((PA_Unichar *)t.getUTF16StringPtr());
+                PA_SetStringVariable(&v, &value);
+                PA_SetCollectionElement(URLs, PA_GetCollectionLength(URLs), v);
+                PA_ClearVariable(&v);
+            }
+            
+            ob_set_c(returnValue, L"clients", URLs);
+            
+        }
+    }
+}
+
 void Websocket_server(PA_PluginParameters params) {
 
     PA_ObjectRef options = PA_GetObjectParameter(params, 1);
     PA_ObjectRef returnValue = PA_CreateObject();
-        
-    ix::WebSocketServer *webSocket = createWebSocketServer(options);
     
-    if(webSocket != NULL) {
+    ix::WebSocketServer *webSocket = NULL;
     
-        configureServer(webSocket, options);
-        
-        socket_id_t idx = (socket_id_t)ob_get_n(options, L"id");
-        ob_set_n(returnValue, L"id", idx);
-        
-        webSocket->setOnClientMessageCallback([idx](std::shared_ptr<ix::ConnectionState> connectionState,
-                                                    ix::WebSocket& webSocket,
-                                                    const ix::WebSocketMessagePtr& msg) mutable {
-                     
-            if (msg->type == ix::WebSocketMessageType::Message)
-            {
-       
-                Json::Value messageInfo(Json::objectValue);
-                
-                messageInfo["uri"] = webSocket.getUrl();
-                
-                messageInfo["remoteIp"] = connectionState->getRemoteIp();
-                messageInfo["remotePort"] = connectionState->getRemotePort();
-                                
-                messageInfo["str"] = msg->str;
-                messageInfo["binary"] = msg->binary;
-                messageInfo["wireSize"] = (unsigned int)msg->wireSize;
-                
-                Json::StreamWriterBuilder writer;
-                writer["indentation"] = "";
-                std::string json = Json::writeString(writer, messageInfo);
+    bool getInfo = false;
+    
+    if(options) {
+        if(ob_is_defined(options, L"id")) {
+            getInfo = true;
+            webSocket = _serverGet((socket_id_t)ob_get_n(options, L"id"));
+            Websocket_server_get_info(webSocket, returnValue);
+        }
+    }
+    
+    if(!getInfo) {
 
-                IXWS::MESSAGE_DATA.push_back(json);
-                IXWS::MESSAGE_TYPE.push_back((int)msg->type);
-                IXWS::WEBSOCKET_ID.push_back(idx);
-                
-            }else
-                
-            if (msg->type == ix::WebSocketMessageType::Open)
-            {
-                Json::Value openInfo(Json::objectValue);
-                                
-                openInfo["remoteIp"] = connectionState->getRemoteIp();
-                openInfo["remotePort"] = connectionState->getRemotePort();
-                
-                openInfo["uri"] = msg->openInfo.uri;
-                webSocket.setUrl(msg->openInfo.uri);
-                
-                Json::Value headers(Json::objectValue);
-
-                for (auto it : msg->openInfo.headers)
+        webSocket = createWebSocketServer(options);
+        
+        if(webSocket != NULL) {
+        
+            configureServer(webSocket, options);
+            
+            socket_id_t idx = (socket_id_t)ob_get_n(options, L"id");
+            ob_set_n(returnValue, L"id", idx);
+            
+            webSocket->setOnClientMessageCallback([idx](std::shared_ptr<ix::ConnectionState> connectionState,
+                                                        ix::WebSocket& webSocket,
+                                                        const ix::WebSocketMessagePtr& msg) mutable {
+                         
+                if (msg->type == ix::WebSocketMessageType::Message)
                 {
-                    headers[it.first] = it.second;
+           
+                    Json::Value messageInfo(Json::objectValue);
+                    
+                    messageInfo["uri"] = webSocket.getUrl();
+                    
+                    messageInfo["remoteIp"] = connectionState->getRemoteIp();
+                    messageInfo["remotePort"] = connectionState->getRemotePort();
+                                    
+                    messageInfo["str"] = msg->str;
+                    messageInfo["binary"] = msg->binary;
+                    messageInfo["wireSize"] = (unsigned int)msg->wireSize;
+                    
+                    Json::StreamWriterBuilder writer;
+                    writer["indentation"] = "";
+                    std::string json = Json::writeString(writer, messageInfo);
+
+                    IXWS::MESSAGE_DATA.push_back(json);
+                    IXWS::MESSAGE_TYPE.push_back((int)msg->type);
+                    IXWS::WEBSOCKET_ID.push_back(idx);
+                    
+                }else
+                    
+                if (msg->type == ix::WebSocketMessageType::Open)
+                {
+                    Json::Value openInfo(Json::objectValue);
+                                    
+                    openInfo["remoteIp"] = connectionState->getRemoteIp();
+                    openInfo["remotePort"] = connectionState->getRemotePort();
+                    
+                    openInfo["uri"] = msg->openInfo.uri;
+                    webSocket.setUrl(msg->openInfo.uri);
+                    
+                    Json::Value headers(Json::objectValue);
+
+                    for (auto it : msg->openInfo.headers)
+                    {
+                        headers[it.first] = it.second;
+                    }
+                    
+                    openInfo["headers"] = headers;
+                    
+                    Json::StreamWriterBuilder writer;
+                    writer["indentation"] = "";
+                    std::string json = Json::writeString(writer, openInfo);
+                    
+                    IXWS::MESSAGE_DATA.push_back(json);
+                    IXWS::MESSAGE_TYPE.push_back((int)msg->type);
+                    IXWS::WEBSOCKET_ID.push_back(idx);
+                    
+                }else
+                    
+                if (msg->type == ix::WebSocketMessageType::Close)
+                {
+                    Json::Value closeInfo(Json::objectValue);
+                    
+                    closeInfo["uri"] = webSocket.getUrl();
+                    
+                    closeInfo["remoteIp"] = connectionState->getRemoteIp();
+                    closeInfo["remotePort"] = connectionState->getRemotePort();
+                    
+                    closeInfo["code"] = msg->closeInfo.code;
+                    closeInfo["reason"] = msg->closeInfo.reason;
+                    closeInfo["remote"] = msg->closeInfo.remote;
+                    
+                    Json::StreamWriterBuilder writer;
+                    writer["indentation"] = "";
+                    std::string json = Json::writeString(writer, closeInfo);
+                    
+                    IXWS::MESSAGE_DATA.push_back(json);
+                    IXWS::MESSAGE_TYPE.push_back((int)msg->type);
+                    IXWS::WEBSOCKET_ID.push_back(idx);
+                    
+                }else
+                
+                if (msg->type == ix::WebSocketMessageType::Error) {
+                    
+                    Json::Value errorInfo(Json::objectValue);
+                    
+                    errorInfo["retries"] = msg->errorInfo.retries;
+                    errorInfo["wait_time"] = msg->errorInfo.wait_time;
+                    errorInfo["http_status"] = msg->errorInfo.http_status;
+                    errorInfo["reason"] = msg->errorInfo.reason;
+                    errorInfo["decompressionError"] = msg->errorInfo.decompressionError;
+
+                    Json::StreamWriterBuilder writer;
+                    writer["indentation"] = "";
+                    std::string json = Json::writeString(writer, errorInfo);
+                    
+                    IXWS::MESSAGE_DATA.push_back(json);
+                    IXWS::MESSAGE_TYPE.push_back((int)msg->type);
+                    IXWS::WEBSOCKET_ID.push_back(idx);
                 }
                 
-                openInfo["headers"] = headers;
-                
-                Json::StreamWriterBuilder writer;
-                writer["indentation"] = "";
-                std::string json = Json::writeString(writer, openInfo);
-                
-                IXWS::MESSAGE_DATA.push_back(json);
-                IXWS::MESSAGE_TYPE.push_back((int)msg->type);
-                IXWS::WEBSOCKET_ID.push_back(idx);
-                
-            }else
-                
-            if (msg->type == ix::WebSocketMessageType::Close)
-            {
-                Json::Value closeInfo(Json::objectValue);
-                
-                closeInfo["uri"] = webSocket.getUrl();
-                
-                closeInfo["remoteIp"] = connectionState->getRemoteIp();
-                closeInfo["remotePort"] = connectionState->getRemotePort();
-                
-                closeInfo["code"] = msg->closeInfo.code;
-                closeInfo["reason"] = msg->closeInfo.reason;
-                closeInfo["remote"] = msg->closeInfo.remote;
-                
-                Json::StreamWriterBuilder writer;
-                writer["indentation"] = "";
-                std::string json = Json::writeString(writer, closeInfo);
-                
-                IXWS::MESSAGE_DATA.push_back(json);
-                IXWS::MESSAGE_TYPE.push_back((int)msg->type);
-                IXWS::WEBSOCKET_ID.push_back(idx);
-                
-            }else
-            
-            if (msg->type == ix::WebSocketMessageType::Error) {
-                
-                Json::Value errorInfo(Json::objectValue);
-                
-                errorInfo["retries"] = msg->errorInfo.retries;
-                errorInfo["wait_time"] = msg->errorInfo.wait_time;
-                errorInfo["http_status"] = msg->errorInfo.http_status;
-                errorInfo["reason"] = msg->errorInfo.reason;
-                errorInfo["decompressionError"] = msg->errorInfo.decompressionError;
-
-                Json::StreamWriterBuilder writer;
-                writer["indentation"] = "";
-                std::string json = Json::writeString(writer, errorInfo);
-                
-                IXWS::MESSAGE_DATA.push_back(json);
-                IXWS::MESSAGE_TYPE.push_back((int)msg->type);
-                IXWS::WEBSOCKET_ID.push_back(idx);
-            }
-            
-            listenerLoopExecute();
-        });
-          
+                listenerLoopExecute();
+            });
+              
+        }
     }
-
+    
     PA_ReturnObject(params, returnValue);
 }
 

@@ -223,11 +223,12 @@ status:=Websocket server send(socket)
 |socket.message|Text|optional|
 |socket.uri|Text or Collection of Text|optional|
 |status|Object||
-|status.success|Boolean||
-|status.compressionError|Boolean||
-|status.payloadSize|Boolean||
-|status.wireSize|Boolean||
-|status.uri|Text||
+|status.statuses[]|Collection||
+|status.statuses[].success|Boolean||
+|status.statuses[].compressionError|Boolean||
+|status.statuses[].payloadSize|Boolean||
+|status.statuses[].wireSize|Boolean||
+|status.statuses[].uri|Text||
 
 by default, message is sent to all connected clients. to target a specific client, pass `uri`
 

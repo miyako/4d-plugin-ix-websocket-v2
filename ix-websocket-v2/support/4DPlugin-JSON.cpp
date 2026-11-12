@@ -25,7 +25,8 @@ void ob_set_p(PA_ObjectRef obj, const wchar_t *_key, PA_Picture value) {
     {
         if(value)
         {
-            PA_Variable v = PA_CreateVariable(eVK_Picture);
+            // eVK_Undefined: eVK_Picture would allocate a value that the shallow PA_Set*Variable below overwrites and leaks
+            PA_Variable v = PA_CreateVariable(eVK_Undefined);
             CUTF16String ukey;
             json_wconv(_key, &ukey);
             PA_Unistring key = PA_CreateUnistring((PA_Unichar *)ukey.c_str());
@@ -86,7 +87,8 @@ void ob_set_s(PA_ObjectRef obj, const char *_key, const char *_value) {
         PA_Unistring key = PA_CreateUnistring((PA_Unichar *)u16k.c_str());
         PA_Unistring value = PA_CreateUnistring((PA_Unichar *)u16v.c_str());
         
-        PA_Variable v = PA_CreateVariable(eVK_Unistring);
+        // eVK_Undefined: eVK_Unistring would allocate a value that the shallow PA_Set*Variable below overwrites and leaks
+        PA_Variable v = PA_CreateVariable(eVK_Undefined);
         PA_SetStringVariable(&v, &value);
         PA_SetObjectProperty(obj, &key, v);
         
@@ -103,7 +105,8 @@ void ob_set_s(PA_ObjectRef obj, const wchar_t *_key, const char *_value) {
     {
         if(_value)
         {
-            PA_Variable v = PA_CreateVariable(eVK_Unistring);
+            // eVK_Undefined: eVK_Unistring would allocate a value that the shallow PA_Set*Variable below overwrites and leaks
+            PA_Variable v = PA_CreateVariable(eVK_Undefined);
             CUTF16String ukey;
             
             json_wconv(_key, &ukey);
@@ -149,7 +152,8 @@ void ob_set_a(PA_ObjectRef obj, const wchar_t *_key, CUTF16String *value) {
     
     if(obj)
     {
-            PA_Variable v = PA_CreateVariable(eVK_Unistring);
+            // eVK_Undefined: eVK_Unistring would allocate a value that the shallow PA_Set*Variable below overwrites and leaks
+            PA_Variable v = PA_CreateVariable(eVK_Undefined);
             CUTF16String ukey;
             json_wconv(_key, &ukey);
  
@@ -170,7 +174,8 @@ void ob_set_a(PA_ObjectRef obj, const wchar_t *_key, const wchar_t *_value) {
     {
         if(_value)
         {
-            PA_Variable v = PA_CreateVariable(eVK_Unistring);
+            // eVK_Undefined: eVK_Unistring would allocate a value that the shallow PA_Set*Variable below overwrites and leaks
+            PA_Variable v = PA_CreateVariable(eVK_Undefined);
             CUTF16String ukey;
             CUTF16String uvalue;
             json_wconv(_key, &ukey);
@@ -484,7 +489,8 @@ bool ob_get_s(PA_ObjectRef obj, const wchar_t *_key, CUTF8String *value) {
         {
             is_defined = false;
             PA_Variable v = PA_GetObjectProperty(obj, &key);
-            if(PA_GetVariableKind(v) == eVK_Unistring)
+            bool got = (PA_GetLastError() == eER_NoErr);
+            if(got && PA_GetVariableKind(v) == eVK_Unistring)
             {
                 is_defined = true;
                 PA_Unistring uvalue = PA_GetStringVariable(v);
@@ -523,6 +529,7 @@ bool ob_get_s(PA_ObjectRef obj, const wchar_t *_key, CUTF8String *value) {
                 }
 #endif
             }
+            if(got) PA_ClearVariable(&v);
         }
         
         PA_DisposeUnistring(&key);
@@ -546,12 +553,14 @@ bool ob_get_a(PA_ObjectRef obj, const wchar_t *_key, CUTF16String *value) {
         {
             is_defined = false;
             PA_Variable v = PA_GetObjectProperty(obj, &key);
-            if(PA_GetVariableKind(v) == eVK_Unistring)
+            bool got = (PA_GetLastError() == eER_NoErr);
+            if(got && PA_GetVariableKind(v) == eVK_Unistring)
             {
                 is_defined = true;
                 PA_Unistring uvalue = PA_GetStringVariable(v);
                 *value = CUTF16String(uvalue.fString, uvalue.fLength);
             }
+            if(got) PA_ClearVariable(&v);
         }
         
         PA_DisposeUnistring(&key);
@@ -576,11 +585,13 @@ bool ob_get_d(PA_ObjectRef obj, const wchar_t *_key, short *dd, short *mm, short
             is_defined = false;
 
             PA_Variable v = PA_GetObjectProperty(obj, &key);
-            if (PA_GetVariableKind(v) == eVK_Date)
+            bool got = (PA_GetLastError() == eER_NoErr);
+            if (got && PA_GetVariableKind(v) == eVK_Date)
             {
                 is_defined = true;
                 PA_GetDateVariable(v, dd, mm, yyyy);
             }
+            if(got) PA_ClearVariable(&v);
         }
 
         PA_DisposeUnistring(&key);
@@ -602,10 +613,12 @@ bool ob_get_b(PA_ObjectRef obj, const wchar_t *_key) {
         if(PA_HasObjectProperty(obj, &key))
         {
             PA_Variable v = PA_GetObjectProperty(obj, &key);
-            if(PA_GetVariableKind(v) == eVK_Boolean)
+            bool got = (PA_GetLastError() == eER_NoErr);
+            if(got && PA_GetVariableKind(v) == eVK_Boolean)
             {
                 value = PA_GetBooleanVariable(v);
             }
+            if(got) PA_ClearVariable(&v);
         }
         
         PA_DisposeUnistring(&key);
@@ -627,10 +640,12 @@ double ob_get_n(PA_ObjectRef obj, const wchar_t *_key) {
         if(PA_HasObjectProperty(obj, &key))
         {
             PA_Variable v = PA_GetObjectProperty(obj, &key);
-            if(PA_GetVariableKind(v) == eVK_Real)
+            bool got = (PA_GetLastError() == eER_NoErr);
+            if(got && PA_GetVariableKind(v) == eVK_Real)
             {
                 value = PA_GetRealVariable(v);
             }
+            if(got) PA_ClearVariable(&v);
         }
         
         PA_DisposeUnistring(&key);
@@ -652,10 +667,13 @@ PA_ObjectRef ob_get_o(PA_ObjectRef obj, const wchar_t *_key) {
         if(PA_HasObjectProperty(obj, &key))
         {
             PA_Variable v = PA_GetObjectProperty(obj, &key);
-            if(PA_GetVariableKind(v) == eVK_Object)
+            bool got = (PA_GetLastError() == eER_NoErr);
+            if(got && PA_GetVariableKind(v) == eVK_Object)
             {
                 value = PA_GetObjectVariable(v);
             }
+            // the parent object keeps the returned reference alive
+            if(got) PA_ClearVariable(&v);
         }
         
         PA_DisposeUnistring(&key);
@@ -676,10 +694,13 @@ PA_CollectionRef ob_get_c(PA_ObjectRef obj, const wchar_t *_key) {
         if(PA_HasObjectProperty(obj, &key))
         {
             PA_Variable v = PA_GetObjectProperty(obj, &key);
-            if(PA_GetVariableKind(v) == eVK_Collection)
+            bool got = (PA_GetLastError() == eER_NoErr);
+            if(got && PA_GetVariableKind(v) == eVK_Collection)
             {
                 value = PA_GetCollectionVariable(v);
             }
+            // the parent object keeps the returned reference alive
+            if(got) PA_ClearVariable(&v);
         }
         
         PA_DisposeUnistring(&key);

@@ -430,7 +430,8 @@ void listenerLoopExecuteMethod() {
             PA_Variable    params[3];
             params[0] = PA_CreateVariable(eVK_Longint);
             params[1] = PA_CreateVariable(eVK_Longint);
-            params[2] = PA_CreateVariable(eVK_Unistring);
+            // eVK_Undefined: eVK_Unistring would allocate a value that the shallow PA_Set*Variable below overwrites and leaks
+            params[2] = PA_CreateVariable(eVK_Undefined);
             
             PA_SetLongintVariable(&params[0], __MESSAGE_TYPE);
             PA_SetLongintVariable(&params[1], __WEBSOCKET_ID);
@@ -440,23 +441,29 @@ void listenerLoopExecuteMethod() {
             PA_Unistring data = PA_CreateUnistring((PA_Unichar *)t.getUTF16StringPtr());
             PA_SetStringVariable(&params[2], &data);
             
-            PA_ExecuteMethodByID(methodId, params, 3);
+            PA_Variable result = PA_ExecuteMethodByID(methodId, params, 3);
+            // capture before PA_ClearVariable, which resets the last error
+            bool executed = (PA_GetLastError() == eER_NoErr);
             
             PA_ClearVariable(&params[0]);
             PA_ClearVariable(&params[1]);
             PA_ClearVariable(&params[2]);
             
+            if(executed) {
+                PA_ClearVariable(&result);
+            }
+            
         }else{
             
             PA_Variable    params[4];
             
-            params[0] = PA_CreateVariable(eVK_Unistring);
+            params[0] = PA_CreateVariable(eVK_Undefined);
             PA_Unistring method = PA_CreateUnistring((PA_Unichar *)IXWS::LISTENER_METHOD.getUTF16StringPtr());
             PA_SetStringVariable(&params[0], &method);
             
             params[1] = PA_CreateVariable(eVK_Longint);
             params[2] = PA_CreateVariable(eVK_Longint);
-            params[3] = PA_CreateVariable(eVK_Blob);
+            params[3] = PA_CreateVariable(eVK_Undefined);
             
             C_TEXT t;
             t.setUTF8String((const uint8_t *)__MESSAGE_DATA.c_str(), (uint32_t)__MESSAGE_DATA.length());
@@ -682,6 +689,7 @@ static void configureClient(ix::WebSocket *webSocket, PA_ObjectRef options) {
                     PA_Unistring u = PA_JsonStringify(v, 0);
                     C_TEXT t;
                     t.setUTF16String(&u);
+                    PA_DisposeUnistring(&u);
                     CUTF8String u8;
                     t.copyUTF8String(&u8);
                     
@@ -714,7 +722,7 @@ static void configureClient(ix::WebSocket *webSocket, PA_ObjectRef options) {
                             webSocket->setExtraHeaders(_headers);
                         }
                     }
-                    PA_ClearVariable(&v);
+                    // v holds the borrowed headers reference: do not clear it
                 }
             }
             
@@ -1215,7 +1223,7 @@ static void Websocket_server_get_info(ix::WebSocketServer *webSocket, PA_ObjectR
                 std::string URL = client->getUrl();
                 C_TEXT t;
                 t.setUTF8String((const uint8_t *)URL.c_str(), (uint32_t)URL.length());
-                PA_Variable v = PA_CreateVariable(eVK_Unistring);
+                PA_Variable v = PA_CreateVariable(eVK_Undefined);
                 PA_Unistring value = PA_CreateUnistring((PA_Unichar *)t.getUTF16StringPtr());
                 PA_SetStringVariable(&v, &value);
                 PA_SetCollectionElement(URLs, PA_GetCollectionLength(URLs), v);
@@ -1420,13 +1428,14 @@ void Websocket_server_send(PA_PluginParameters params) {
         CUTF8String stringValue;
         
         if(ob_is_defined(options, L"uri")) {
-            PA_CollectionRef uri = ob_get_c(options, L"uri");
+            PA_CollectionRef uri = ob_get_c(options, L"uri"); // borrowed
+            PA_CollectionRef ownedUri = NULL;
             if(!uri) {
                 CUTF16String stringValue16;
                 if(ob_get_a(options, L"uri", &stringValue16)){
                     if(stringValue16.length() != 0){
-                        uri = PA_CreateCollection();
-                        PA_Variable v = PA_CreateVariable(eVK_Unistring);
+                        uri = ownedUri = PA_CreateCollection();
+                        PA_Variable v = PA_CreateVariable(eVK_Undefined);
                         PA_Unistring value = PA_CreateUnistring((PA_Unichar *)stringValue16.c_str());
                         PA_SetStringVariable(&v, &value);
                         PA_SetCollectionElement(uri, PA_GetCollectionLength(uri), v);
@@ -1438,6 +1447,7 @@ void Websocket_server_send(PA_PluginParameters params) {
                 PA_long32 len = PA_GetCollectionLength(uri);
                 for(PA_long32 i = 0; i < len; ++i) {
                     PA_Variable v = PA_GetCollectionElement(uri, i);
+                    if(PA_GetLastError() != eER_NoErr) continue;
                     if(PA_GetVariableKind(v) == eVK_Unistring) {
                         PA_Unistring u = PA_GetStringVariable(v);
                         C_TEXT t;
@@ -1447,7 +1457,11 @@ void Websocket_server_send(PA_PluginParameters params) {
                         std::string s((const char *)u8.c_str());
                         uris.append(s);
                     }
+                    PA_ClearVariable(&v);
                 }
+            }
+            if(ownedUri) {
+                PA_DisposeCollection(ownedUri);
             }
         }
         
@@ -1487,6 +1501,7 @@ void Websocket_server_send(PA_PluginParameters params) {
                         PA_Variable v = PA_CreateVariable(eVK_Object);
                         PA_SetObjectVariable(&v, status);
                         PA_SetCollectionElement(statuses, PA_GetCollectionLength(statuses), v);
+                        PA_ClearVariable(&v);
                     }
                 }
             }

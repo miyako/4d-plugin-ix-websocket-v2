@@ -8,7 +8,7 @@ set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "${1:-$here/../..}" && pwd)
 [ $# -gt 0 ] && shift
-src="$root/ix-websocket-v2"
+src="$root"
 out=$(mktemp -d)
 trap 'rm -rf "$out"' EXIT
 api="$src/4D Plugin API"

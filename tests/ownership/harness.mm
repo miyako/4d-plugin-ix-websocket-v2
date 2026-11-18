@@ -114,20 +114,12 @@ static const Test kTests[] = {
         CHECK(last_execute_method_params() == 4);
     }},
     // --- LIVE: support/4DPlugin-JSON.cpp getters (every command's options) ---
-    {"live_ob_get_s_released", [] {
+    {"live_ob_get_a_released", [] {
         Obj *o = new_object();
         put_string(o, "k", "hello");
         CUTF8String s;
-        CHECK(ob_get_s((PA_ObjectRef)o, L"k", &s));
-        CHECK(s == CUTF8String((const uint8_t *)"hello"));
-        release(o);
-    }},
-    {"live_ob_get_a_released", [] {
-        Obj *o = new_object();
-        put_string(o, "k", "hi");
-        CUTF16String s;
         CHECK(ob_get_a((PA_ObjectRef)o, L"k", &s));
-        CHECK(s.length() == 2 && s[0] == 'h' && s[1] == 'i');
+        CHECK(s == CUTF8String((const uint8_t *)"hello"));
         release(o);
     }},
     {"live_ob_get_b_n_nonmatching_released", [] {
@@ -259,27 +251,16 @@ static const Test kTests[] = {
         CHECK(has_picture(o, "p"));
         release(o);
     }},
-    {"dormant_ob_get_d_released", [] {
-        Obj *o = new_object();
-        put_date(o, "d", 3, 4, 2024);
-        put_string(o, "s", "x");
-        short d = 0, m = 0, y = 0;
-        CHECK(ob_get_d((PA_ObjectRef)o, L"d", &d, &m, &y) && d == 3 && m == 4 && y == 2024);
-        CHECK(!ob_get_d((PA_ObjectRef)o, L"s", &d, &m, &y));
-        release(o);
-    }},
     // --- controls: must pass before and after ---
     {"control_getters_error_not_cleared", [] {
         Obj *o = new_object();
         put_string(o, "s", "x"); put_real(o, "n", 1); put_bool(o, "b", true); put_date(o, "d", 1, 1, 2024);
         CUTF8String s;
-        CUTF16String a;
-        short d, m, y;
-        fail_next_gets(1); ob_get_s((PA_ObjectRef)o, L"s", &s);
+        CUTF8String a;
+        fail_next_gets(1); ob_get_a((PA_ObjectRef)o, L"s", &s);
         fail_next_gets(1); ob_get_a((PA_ObjectRef)o, L"s", &a);
         fail_next_gets(1); CHECK(ob_get_n((PA_ObjectRef)o, L"n") == 0.0);
         fail_next_gets(1); CHECK(!ob_get_b((PA_ObjectRef)o, L"b"));
-        fail_next_gets(1); ob_get_d((PA_ObjectRef)o, L"d", &d, &m, &y);
         fail_next_gets(1); CHECK(ob_get_o((PA_ObjectRef)o, L"s") == nullptr);
         fail_next_gets(1); CHECK(ob_get_c((PA_ObjectRef)o, L"s") == nullptr);
         release(o);

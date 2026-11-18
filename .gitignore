@@ -1,3 +1,11 @@
 *.DS_Store
-ix-websocket-v2/build/*
-ix-websocket-v2/test/userPreferences.*
+build/
+/ix-websocket.dmg
+/ix-websocket.zip
+test/Data/Logs/
+test/Logs/
+test/userPreferences.*
+test/Project/DerivedData/
+test/Plugins/ix-websocket.bundle/Contents/MacOS/ix-websocket
+test/Plugins/ix-websocket.bundle/Contents/_CodeSignature/
+xcuserdata/
